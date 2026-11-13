@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# Offline stand-in for timeout used by tests/run-tests.sh: ignores the duration and runs the
+# command.
+set -euo pipefail
+shift
+exec "$@"

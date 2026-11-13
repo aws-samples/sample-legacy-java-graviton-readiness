@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# Offline stand-in for the AWS CLI used by tests/run-tests.sh. Logs each call to $STUB_LOG and
+# prints canned JSON with placeholder values only. Never contacts AWS.
+# STUB_WORLD selects what exists before the test: "empty" (default; nothing exists),
+# "present" (the run's resources exist and carry its tags) or "untagged" (resources with the
+# run's names exist without its tags). Deletions are remembered in files next to $STUB_LOG.
+# Other switches: STUB_NO_DEFAULT_VPC, STUB_INSTANCE_STATE, STUB_ICE_SUBNET (run-instances in
+# this subnet fails with InsufficientInstanceCapacity), STUB_EKS_PARTS (the run's tagged
+# instances and security groups also include an EKS node and an eksctl security group),
+# STUB_TAG_LAG ("deleted": the tagging API also lists a terminated instance, a deleted volume
+# and a deleted network interface; "eni-exists": the same, but the network interface exists).
+set -euo pipefail
+
+: "${STUB_LOG:?STUB_LOG must be set}"
+STATE="$(dirname "$STUB_LOG")"
+printf '%s %s\n' "$(basename "$0")" "$*" >>"$STUB_LOG"
+
+ACCOUNT="123456789012"
+WORLD="${STUB_WORLD:-empty}"
+RUN="${STUB_RUN_ID:-test-run-1}"
+INSTANCE="i-0123456789abcdef0"
+VOLUME="vol-0123456789abcdef0"
+SG="sg-0123456789abcdef0"
+
+ARGS=("$@")
+arg() {
+  local i=0
+  while [ "$i" -lt "${#ARGS[@]}" ]; do
+    if [ "${ARGS[$i]}" = "$1" ]; then
+      printf '%s' "${ARGS[$((i + 1))]:-}"
+      return 0
+    fi
+    i=$((i + 1))
+  done
+}
+
+not_found() {
+  printf '\nAn error occurred (%s) when calling the %s operation: %s\n' "$1" "$2" "$3" >&2
+  exit 254
+}
+
+gone() { [ -f "$STATE/deleted-$1" ]; }
+mark() { touch "$STATE/deleted-$1"; }
+created() { [ -f "$STATE/created-$1" ]; }
+create() { touch "$STATE/created-$1"; }
+# exists KIND: the resource exists (created in this test, or present/untagged and not deleted)
+exists() {
+  if gone "$1"; then return 1; fi
+  created "$1" || [ "$WORLD" = present ] || [ "$WORLD" = untagged ]
+}
+tagged() { [ "$WORLD" = present ] || created "$1"; }
+tag_list() { # tag_list KIND
+  if tagged "$1"; then
+    printf '[{"Key":"project","Value":"sample-legacy-java-graviton-readiness"},{"Key":"owner","Value":"example-owner"},{"Key":"run-id","Value":"%s"},{"Key":"lab-host","Value":"c8g-g1"}]' "$RUN"
+  else
+    printf '[{"Key":"Name","Value":"other"}]'
+  fi
+}
+tag_map() {
+  if tagged "$1"; then
+    printf '{"project":"sample-legacy-java-graviton-readiness","owner":"example-owner","run-id":"%s"}' "$RUN"
+  else
+    printf '{"Name":"other"}'
+  fi
+}
+# filtered KIND: a tag-filtered describe finds the resource only when it is tagged.
+filtered() { exists "$1" && tagged "$1"; }
+
+op="${1:-} ${2:-}"
+case "$op" in
+  "sts get-caller-identity")
+    printf '{"UserId":"EXAMPLEUSERID","Account":"%s","Arn":"arn:aws:sts::%s:assumed-role/ExampleRole/example"}\n' "$ACCOUNT" "$ACCOUNT"
+    ;;
+  "ec2 describe-instance-types")
+    t="$(arg --instance-types)"
+    case "$t" in *g.*) a='["arm64"]' ;; *) a='["x86_64","i386"]' ;; esac
+    printf '{"InstanceTypes":[{"InstanceType":"%s","ProcessorInfo":{"SupportedArchitectures":%s}}]}\n' "$t" "$a"
+    ;;
+  "ssm get-parameter")
+    case "$(arg --name)" in
+      *arm64) printf '{"Parameter":{"Value":"ami-0123456789abcdef0"}}\n' ;;
+      *) printf '{"Parameter":{"Value":"ami-0abcdef1234567890"}}\n' ;;
+    esac
+    ;;
+  "ec2 describe-vpcs")
+    if [ "${STUB_NO_DEFAULT_VPC:-0}" = 1 ]; then printf '{"Vpcs":[]}\n'; else printf '{"Vpcs":[{"VpcId":"vpc-0123456789abcdef0"}]}\n'; fi
+    ;;
+  "ec2 describe-instance-type-offerings")
+    types="$(arg --filters)"
+    types="${types#Name=instance-type,Values=}"
+    printf '{"InstanceTypeOfferings":['
+    sep=""
+    for az in us-east-1a us-east-1b; do
+      for t in $(printf '%s' "$types" | tr ',' ' '); do
+        # c8g is not offered in us-east-1a in this stub, so the script must pick us-east-1b.
+        if [ "$az" = us-east-1a ] && [ "${t%%.*}" = c8g ]; then continue; fi
+        printf '%s{"Location":"%s","InstanceType":"%s"}' "$sep" "$az" "$t"
+        sep=","
+      done
+    done
+    printf ']}\n'
+    ;;
+  "ec2 describe-subnets")
+    case " $* " in
+      *" Name=availability-zone,Values=us-east-1a "*) printf '{"Subnets":[{"SubnetId":"subnet-0abcdef1234567890"}]}\n' ;;
+      *) printf '{"Subnets":[{"SubnetId":"subnet-0123456789abcdef0"}]}\n' ;;
+    esac
+    ;;
+  "s3api head-bucket")
+    exists bucket || not_found 404 HeadBucket "Not Found"
+    ;;
+  "s3api get-bucket-tagging")
+    exists bucket || not_found NoSuchBucket GetBucketTagging "The specified bucket does not exist"
+    printf '{"TagSet":%s}\n' "$(tag_list bucket)"
+    ;;
+  "s3api create-bucket") create bucket; printf '{"Location":"/%s"}\n' "$(arg --bucket)" ;;
+  "s3api put-bucket-tagging" | "s3api put-public-access-block" | "s3api put-bucket-encryption" | \
+    "s3api put-bucket-policy") ;;
+  "s3api delete-bucket") mark bucket ;;
+  "s3 cp" | "s3 rm" | "s3 sync") ;;
+  "iam get-role")
+    exists role || not_found NoSuchEntity GetRole "The role with name $(arg --role-name) cannot be found."
+    printf '{"Role":{"RoleName":"%s","Tags":%s}}\n' "$(arg --role-name)" "$(tag_list role)"
+    ;;
+  "iam get-instance-profile")
+    exists profile || not_found NoSuchEntity GetInstanceProfile "Instance Profile $(arg --instance-profile-name) cannot be found."
+    printf '{"InstanceProfile":{"InstanceProfileName":"%s","Roles":[{"RoleName":"%s"}],"Tags":%s}}\n' \
+      "$(arg --instance-profile-name)" "$(arg --instance-profile-name)" "$(tag_list profile)"
+    ;;
+  "iam create-role") create role; printf '{"Role":{"RoleName":"%s"}}\n' "$(arg --role-name)" ;;
+  "iam create-instance-profile") create profile; printf '{"InstanceProfile":{}}\n' ;;
+  "iam attach-role-policy" | "iam put-role-policy" | "iam add-role-to-instance-profile" | "iam wait" | \
+    "iam remove-role-from-instance-profile" | "iam detach-role-policy" | "iam delete-role-policy") ;;
+  "iam delete-instance-profile") mark profile ;;
+  "iam delete-role") mark role ;;
+  "iam list-attached-role-policies")
+    printf '{"AttachedPolicies":[{"PolicyArn":"arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"}]}\n'
+    ;;
+  "iam list-role-policies") printf '{"PolicyNames":["lab-bucket-access"]}\n' ;;
+  "iam list-roles") printf '{"Roles":[{"RoleName":"unrelated-role"}]}\n' ;;
+  "ec2 create-security-group") create sg; printf '{"GroupId":"%s"}\n' "$SG" ;;
+  "ec2 run-instances")
+    if [ "$(arg --subnet-id)" = "${STUB_ICE_SUBNET:-none}" ]; then
+      printf '\nAn error occurred (InsufficientInstanceCapacity) when calling the RunInstances operation: We currently do not have sufficient capacity.\n' >&2
+      exit 254
+    fi
+    create instance
+    printf '{"Instances":[{"InstanceId":"%s"}]}\n' "$INSTANCE"
+    ;;
+  "ec2 describe-instances")
+    if [ "$(arg --instance-ids)" = i-0abcdef1234567890 ] && [ -n "${STUB_TAG_LAG:-}" ]; then
+      printf '{"Reservations":[{"Instances":[{"InstanceId":"i-0abcdef1234567890","State":{"Name":"terminated"}}]}]}\n'
+    elif [ -n "$(arg --instance-ids)" ]; then
+      exists instance || not_found InvalidInstanceID.NotFound DescribeInstances "The instance ID does not exist"
+      printf '{"Reservations":[{"Instances":[{"InstanceId":"%s","State":{"Name":"%s"},"Tags":%s}]}]}\n' \
+        "$INSTANCE" "${STUB_INSTANCE_STATE:-running}" "$(tag_list instance)"
+    elif filtered instance && [ "${STUB_EKS_PARTS:-0}" = 1 ]; then
+      printf '{"Reservations":[{"Instances":[{"InstanceId":"%s","State":{"Name":"running"}},{"InstanceId":"i-0abcdef1234567890","State":{"Name":"running"},"Tags":[{"Key":"eks:cluster-name","Value":"jvm-cgroup-%s"}]}]}]}\n' "$INSTANCE" "$RUN"
+    elif filtered instance; then
+      printf '{"Reservations":[{"Instances":[{"InstanceId":"%s","State":{"Name":"running"}}]}]}\n' "$INSTANCE"
+    else
+      printf '{"Reservations":[]}\n'
+    fi
+    ;;
+  "ec2 terminate-instances") mark instance; printf '{"TerminatingInstances":[]}\n' ;;
+  "ec2 wait") ;;
+  "ec2 describe-volumes")
+    # The root volume is attached while the instance exists; afterwards it is deleted with it.
+    if [ -n "$(arg --volume-ids)" ]; then
+      not_found InvalidVolume.NotFound DescribeVolumes "The volume '$(arg --volume-ids)' does not exist."
+    elif filtered instance && [ "${STUB_EKS_PARTS:-0}" = 1 ]; then
+      printf '{"Volumes":[{"VolumeId":"%s","State":"in-use"},{"VolumeId":"vol-0abcdef1234567890","State":"available","Tags":[{"Key":"eks:cluster-name","Value":"jvm-cgroup-%s"}]}]}\n' "$VOLUME" "$RUN"
+    elif filtered instance; then
+      printf '{"Volumes":[{"VolumeId":"%s","State":"in-use"}]}\n' "$VOLUME"
+    else
+      printf '{"Volumes":[]}\n'
+    fi
+    ;;
+  "ec2 delete-volume") ;;
+  "ec2 describe-network-interfaces")
+    [ "${STUB_TAG_LAG:-}" = eni-exists ] ||
+      not_found InvalidNetworkInterfaceID.NotFound DescribeNetworkInterfaces "The networkInterface ID '$(arg --network-interface-ids)' does not exist"
+    printf '{"NetworkInterfaces":[{"NetworkInterfaceId":"%s","Status":"in-use"}]}\n' "$(arg --network-interface-ids)"
+    ;;
+  "ec2 describe-security-groups")
+    if filtered sg && [ "${STUB_EKS_PARTS:-0}" = 1 ]; then
+      printf '{"SecurityGroups":[{"GroupId":"%s"},{"GroupId":"sg-0abcdef1234567890","Tags":[{"Key":"alpha.eksctl.io/cluster-name","Value":"jvm-cgroup-%s"}]}]}\n' "$SG" "$RUN"
+    elif filtered sg; then
+      printf '{"SecurityGroups":[{"GroupId":"%s"}]}\n' "$SG"
+    else
+      printf '{"SecurityGroups":[]}\n'
+    fi
+    ;;
+  "ec2 delete-security-group") mark sg ;;
+  "ec2 describe-key-pairs") printf '{"KeyPairs":[]}\n' ;;
+  "ec2 describe-snapshots") printf '{"Snapshots":[]}\n' ;;
+  "ec2 describe-images") printf '{"Images":[]}\n' ;;
+  "ec2 describe-nat-gateways") printf '{"NatGateways":[]}\n' ;;
+  "ec2 describe-addresses") printf '{"Addresses":[]}\n' ;;
+  "eks describe-cluster")
+    exists cluster || not_found ResourceNotFoundException DescribeCluster "No cluster found for name: $(arg --name)."
+    printf '{"cluster":{"name":"%s","status":"ACTIVE","tags":%s}}\n' "$(arg --name)" "$(tag_map cluster)"
+    ;;
+  "eks list-clusters")
+    if exists cluster; then printf '{"clusters":["jvm-cgroup-%s"]}\n' "$RUN"; else printf '{"clusters":[]}\n'; fi
+    ;;
+  "cloudformation list-stacks")
+    if exists cluster; then
+      printf '{"StackSummaries":[{"StackName":"eksctl-jvm-cgroup-%s-cluster"}]}\n' "$RUN"
+    else
+      printf '{"StackSummaries":[]}\n'
+    fi
+    ;;
+  "resourcegroupstaggingapi get-resources")
+    {
+      if filtered sg; then
+        printf '{"ResourceARN":"arn:aws:ec2:us-east-1:%s:security-group/%s"}\n' "$ACCOUNT" "$SG"
+      fi
+      if [ -n "${STUB_TAG_LAG:-}" ]; then
+        for r in instance/i-0abcdef1234567890 volume/vol-0abcdef1234567890 network-interface/eni-0abcdef1234567890; do
+          printf '{"ResourceARN":"arn:aws:ec2:us-east-1:%s:%s"}\n' "$ACCOUNT" "$r"
+        done
+      fi
+    } | jq -sc '{ResourceTagMappingList: .}'
+    ;;
+  "ssm send-command")
+    p="$(arg --parameters)"
+    cp "${p#file://}" "$STATE/ssm-params.json"
+    printf '{"Command":{"CommandId":"11111111-2222-3333-4444-5555aaaabbbb"}}\n'
+    ;;
+  *)
+    printf 'aws stub: unsupported call: %s\n' "$*" >&2
+    exit 255
+    ;;
+esac

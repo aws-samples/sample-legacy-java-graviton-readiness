@@ -1,0 +1,14 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+# Handwritten excerpt in the PrintFlagsFinal format of this JDK feature release (test fixture),
+# run with -XX:+UnlockDiagnosticVMOptions: diagnostic flags such as UseAESIntrinsics appear.
+[Global flags]
+   size_t MaxHeapSize                              = 4294967296                                {product} {ergonomic}
+     intx ThreadStackSize                          = 2040                                   {pd product} {default}
+     bool UseAESIntrinsics                         = true                                   {diagnostic} {default}
+     bool UseContainerSupport                      = true                                      {product} {default}
+     bool UseLSE                                   = true                                 {ARCH product} {default}
+     bool UseSHA256Intrinsics                      = true                                   {diagnostic} {default}
+     uint UseSVE                                   = 1                                    {ARCH product} {default}
+     bool UseCRC32CIntrinsics                      = true                                   {diagnostic} {default}
+openjdk version "21.0.13" 2026-10-20 LTS

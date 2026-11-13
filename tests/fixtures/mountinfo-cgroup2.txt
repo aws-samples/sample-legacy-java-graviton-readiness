@@ -1,0 +1,5 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+# /proc/self/mountinfo excerpt (test fixture).
+22 1 259:1 / / rw,noatime shared:1 - xfs /dev/root rw
+29 23 0:26 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:4 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot

@@ -1,0 +1,13 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+# Handwritten excerpt in the PrintFlagsFinal format of this JDK feature release (test fixture).
+[Global flags]
+    uintx MaxHeapSize                              := 4294967296                          {product}
+   double MaxRAMPercentage                          = 25.000000                           {product}
+ccstrlist OnError                                   =                                     {product}
+     intx ThreadStackSize                           = 2048                                {pd product}
+     bool UseContainerSupport                       = true                                {product}
+     bool UseLSE                                    = true                                {ARCH product}
+     bool UseLSE                                    = false                               {ARCH product}
+openjdk version "1.8.0_372"
+OpenJDK Runtime Environment Corretto-8.372.07.1 (build 1.8.0_372-b07)

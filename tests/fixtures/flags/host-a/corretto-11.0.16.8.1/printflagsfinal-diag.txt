@@ -1,0 +1,11 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+# Handwritten excerpt in the PrintFlagsFinal format of this JDK feature release (test fixture).
+[Global flags]
+   size_t MaxHeapSize                              = 4294967296                                {product} {ergonomic}
+   double MaxRAMPercentage                         = 25.000000                                 {product} {default}
+     intx ThreadStackSize                          = 2048                                   {pd product} {default}
+     bool UseContainerSupport                      = true                                      {product} {default}
+     bool UseLSE                                   = true                                 {ARCH product} {default}
+     bool UseCRC32CIntrinsics                      = true                                 {product} {default}
+openjdk version "11.0.16" 2022-07-19 LTS

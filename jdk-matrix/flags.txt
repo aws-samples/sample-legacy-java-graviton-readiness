@@ -1,0 +1,50 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# JVM flags reported by flags-to-csv.sh, one per line, in table order. A flag that a JDK
+# does not have is reported as absent (present=false, shown as an em dash in Markdown).
+# Atomics and memory ordering
+UseLSE
+UseBarriersForVolatile
+OnSpinWaitInst
+# Crypto and checksum intrinsics
+UseAES
+UseAESIntrinsics
+UseAESCTRIntrinsics
+UseGHASHIntrinsics
+UseSHA
+UseSHA1Intrinsics
+UseSHA256Intrinsics
+UseSHA512Intrinsics
+UseSHA3Intrinsics
+UseCRC32Intrinsics
+UseCRC32CIntrinsics
+UseAdler32Intrinsics
+UseMontgomeryMultiplyIntrinsic
+UseMultiplyToLenIntrinsic
+# Vector, memory and alignment
+UseSIMDForMemoryOps
+UseSVE
+UseBlockZeroing
+UseNeon
+UseUnalignedAccesses
+AvoidUnalignedAccesses
+CriticalJNINatives
+# Thread stacks and huge pages
+ThreadStackSize
+VMThreadStackSize
+CompilerThreadStackSize
+UseTransparentHugePages
+# Heap, GC and JIT threads
+MaxHeapSize
+MaxRAMPercentage
+UseG1GC
+UseParallelGC
+UseSerialGC
+ParallelGCThreads
+ConcGCThreads
+CICompilerCount
+# Container support
+UseContainerSupport
+UseContainerCpuShares
+PreferContainerQuotaForCPUCount

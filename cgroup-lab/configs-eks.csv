@@ -1,0 +1,13 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+# Pod configurations of eks/run-eks-matrix.sh. An empty cpu_limit means no CPU limit (CPU request only).
+# program: probe = ContainerProbe, alloc = AllocPressure. jvm_flags are space-separated.
+config,program,cpu_request,cpu_limit,memory_request,memory_limit,jvm_flags,description
+K1,probe,1,1,1Gi,1Gi,,requests = limits: 1 CPU and 1 GiB
+K2,probe,2,2,1Gi,1Gi,,requests = limits: 2 CPUs and 1 GiB
+K3,probe,1,,1Gi,1Gi,,CPU request 1 without a CPU limit and 1 GiB
+K4,probe,2,2,1Gi,1Gi,-Xmx512m,K2 with an explicit maximum heap
+K5,probe,2,2,1Gi,1Gi,-XX:MaxRAMPercentage=75.0,K2 with MaxRAMPercentage (JDK 8 rejects the form 75 without a decimal point)
+K6,alloc,2,2,1Gi,1Gi,,K2 with allocation pressure
+K7,alloc,2,2,1Gi,1Gi,-XX:MaxRAMPercentage=75.0,K5 with allocation pressure
+K8,alloc,2,2,1Gi,1Gi,-Xmx768m,K2 with allocation pressure and an explicit maximum heap

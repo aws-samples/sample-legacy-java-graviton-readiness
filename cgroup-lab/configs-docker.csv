@@ -1,0 +1,15 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+# Docker configurations of run-docker-matrix.sh. program: probe = ContainerProbe, alloc = AllocPressure.
+# docker_flags and jvm_flags are space-separated; run-docker-matrix.sh accepts only the flag forms it validates.
+config,program,docker_flags,jvm_flags,description
+D0,probe,,,no limits
+D1,probe,--memory=1g --cpus=1,,1 GiB and a CPU quota of 1
+D2,probe,--memory=1g --cpus=2,,1 GiB and a CPU quota of 2
+D3,probe,--memory=1g --cpuset-cpus=0-1,,1 GiB and 2 CPUs by cpuset
+D4,probe,--memory=1g --cpu-shares=512,,1 GiB and CPU shares 512 (cpu.weight on cgroup v2)
+D5,probe,--memory=1g --cpus=2,-Xmx512m,D2 with an explicit maximum heap
+D6,probe,--memory=1g --cpus=2,-XX:MaxRAMPercentage=75.0,D2 with MaxRAMPercentage (JDK 8 rejects the form 75 without a decimal point)
+A1,alloc,--memory=1g --cpus=2,,D2 with allocation pressure
+A2,alloc,--memory=1g --cpus=2,-XX:MaxRAMPercentage=75.0,D6 with allocation pressure
+A3,alloc,--memory=1g --cpus=2,-Xmx768m,D2 with allocation pressure and an explicit maximum heap

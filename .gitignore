@@ -1,0 +1,10 @@
+# Results, downloaded JDKs and compiled probes
+out/
+jdks/
+*.class
+# Logs
+*.log
+# macOS
+.DS_Store
+# Python
+__pycache__/

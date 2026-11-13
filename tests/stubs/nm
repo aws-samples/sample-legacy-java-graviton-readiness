@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# Offline stand-in for nm used by tests/run-tests.sh. "nm -D LIB": one outline-atomics helper
+# symbol in the dynamic symbol table; "nm LIB": none in the static table. "nm -D --defined-only
+# LIB": the lines of the fake library LIB that look like nm output ("<address> <type> <name>");
+# a fake library whose first line is "not-elf" makes nm fail, as for a file that is not ELF.
+set -euo pipefail
+if [ -n "${STUB_LOG:-}" ]; then printf '%s %s\n' "$(basename "$0")" "$*" >>"$STUB_LOG"; fi
+if [ "${1:-}" = -D ] && [ "${2:-}" = --defined-only ]; then
+  lib="${3:?library path expected}"
+  if [ "$(head -n 1 "$lib")" = not-elf ]; then
+    echo "nm: $lib: file format not recognized" >&2
+    exit 1
+  fi
+  grep -E '^[0-9a-f]+ [A-Za-z] ' "$lib" || true
+  exit 0
+fi
+if [ "${1:-}" = -D ]; then
+  echo "00002000 T __aarch64_cas4_acq_rel"
+fi

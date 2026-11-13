@@ -1,0 +1,108 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# eksctl ClusterConfig template for the cgroup lab, rendered by eks-up.sh. Four arm64 managed
+# node groups with one node each: Amazon Linux 2023 and Bottlerocket on m8g.xlarge (AWS
+# Graviton4) and on m9g.xlarge (AWS Graviton5). run-eks-matrix.sh selects a node by the labels
+# lab/os and node.kubernetes.io/instance-type. Public subnets and no NAT gateway keep the test
+# cluster small; nodes have no SSH access.
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: __CLUSTER__
+  region: __REGION__
+  version: "__K8S_VERSION__"
+  tags:
+    project: sample-legacy-java-graviton-readiness
+    owner: __OWNER__
+    run-id: __RUN_ID__
+vpc:
+  nat:
+    gateway: Disable
+  clusterEndpoints:
+    publicAccess: true
+    privateAccess: true
+  publicAccessCIDRs: ["__API_CIDR__"]
+accessConfig:
+  authenticationMode: API_AND_CONFIG_MAP
+addons:
+  - name: vpc-cni
+  - name: coredns
+  - name: kube-proxy
+managedNodeGroups:
+  - name: al2023-m8g
+    amiFamily: AmazonLinux2023
+    instanceType: m8g.xlarge
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 1
+    privateNetworking: false
+    volumeSize: 50
+    volumeType: gp3
+    volumeEncrypted: true
+    disableIMDSv1: true
+    ssh:
+      allow: false
+    labels:
+      lab/os: al2023
+    tags:
+      project: sample-legacy-java-graviton-readiness
+      owner: __OWNER__
+      run-id: __RUN_ID__
+  - name: br-m8g
+    amiFamily: Bottlerocket
+    instanceType: m8g.xlarge
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 1
+    privateNetworking: false
+    volumeSize: 50
+    volumeType: gp3
+    volumeEncrypted: true
+    disableIMDSv1: true
+    ssh:
+      allow: false
+    labels:
+      lab/os: bottlerocket
+    tags:
+      project: sample-legacy-java-graviton-readiness
+      owner: __OWNER__
+      run-id: __RUN_ID__
+  - name: al2023-m9g
+    amiFamily: AmazonLinux2023
+    instanceType: m9g.xlarge
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 1
+    privateNetworking: false
+    volumeSize: 50
+    volumeType: gp3
+    volumeEncrypted: true
+    disableIMDSv1: true
+    ssh:
+      allow: false
+    labels:
+      lab/os: al2023
+    tags:
+      project: sample-legacy-java-graviton-readiness
+      owner: __OWNER__
+      run-id: __RUN_ID__
+  - name: br-m9g
+    amiFamily: Bottlerocket
+    instanceType: m9g.xlarge
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 1
+    privateNetworking: false
+    volumeSize: 50
+    volumeType: gp3
+    volumeEncrypted: true
+    disableIMDSv1: true
+    ssh:
+      allow: false
+    labels:
+      lab/os: bottlerocket
+    tags:
+      project: sample-legacy-java-graviton-readiness
+      owner: __OWNER__
+      run-id: __RUN_ID__

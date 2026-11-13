@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# Offline stand-in for docker used by tests/run-tests.sh. Logs each call to $STUB_LOG and
+# prints canned output for the lab programs. STUB_OOM=1 makes AllocPressure runs look
+# OOM-killed (exit 137, OOMKilled true); STUB_DOCKER_DOWN=1 makes "docker info" fail.
+set -euo pipefail
+: "${STUB_LOG:?STUB_LOG must be set}"
+STATE="$(dirname "$STUB_LOG")"
+printf '%s %s\n' "$(basename "$0")" "$*" >>"$STUB_LOG"
+case "${1:-}" in
+  info)
+    [ "${STUB_DOCKER_DOWN:-0}" = 0 ] || exit 1
+    echo "Server Version: 0.0.0-example"
+    ;;
+  run)
+    name=""
+    prev=""
+    for a in "$@"; do
+      if [ "$prev" = --name ]; then name="$a"; fi
+      prev="$a"
+    done
+    case " $* " in
+      *" ContainerProbe "*)
+        printf '{"probe":"ContainerProbe","available_processors":2,"runtime_max_memory":259522560}\n'
+        : >"$STATE/last-exit-$name"
+        ;;
+      *" AllocPressure "*)
+        printf '{"event":"start","runtime_max_memory":4294967296}\n{"event":"progress","ms":100,"allocated_mib":32}\n'
+        if [ "${STUB_OOM:-0}" = 1 ]; then
+          echo oom >"$STATE/last-exit-$name"
+          exit 137
+        fi
+        : >"$STATE/last-exit-$name"
+        ;;
+      *" ThreadFootprint "*)
+        printf '{"event":"sample","sample_s":5,"threads_created":200,"vmrss_kb":123456}\n'
+        printf '\nNative Memory Tracking:\n\nTotal: reserved=1KB, committed=1KB\n'
+        : >"$STATE/last-exit-$name"
+        ;;
+      *" -version "*)
+        echo 'openjdk version "1.8.0_372"'
+        ;;
+    esac
+    ;;
+  inspect)
+    if [ -f "$STATE/last-exit-${2:-}" ] && [ -s "$STATE/last-exit-${2:-}" ]; then
+      printf '[{"State":{"OOMKilled":true,"ExitCode":137}}]\n'
+    else
+      printf '[{"State":{"OOMKilled":false,"ExitCode":0}}]\n'
+    fi
+    ;;
+  rm | kill) ;;
+  *)
+    printf 'docker stub: unsupported call: %s\n' "$*" >&2
+    exit 1
+    ;;
+esac

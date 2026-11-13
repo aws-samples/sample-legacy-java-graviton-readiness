@@ -1,0 +1,119 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# One Job as rendered by:
+#   run-eks-matrix.sh --instance-type m8g.xlarge --print-job al2023,corretto-8.372.07.1,K2
+# (kept for static checks; the tests check that the script still renders exactly this).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jvmlab-al2023-m8g-example
+  namespace: jvm-cgroup-lab
+  labels:
+    app.kubernetes.io/name: jvm-cgroup-lab
+    lab/os: al2023
+    lab/jdk: corretto-8.372.07.1
+    lab/config: K2
+    lab/repeat: "1"
+  annotations:
+    checkov.io/skip1: CKV_K8S_8=Run-to-completion Job; a liveness probe does not apply
+    checkov.io/skip2: CKV_K8S_9=Run-to-completion Job; a readiness probe does not apply
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jvm-cgroup-lab
+        lab/os: al2023
+        lab/jdk: corretto-8.372.07.1
+        lab/config: K2
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      nodeSelector:
+        lab/os: al2023
+        node.kubernetes.io/instance-type: m8g.xlarge
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: fetch-jdk
+          image: public.ecr.aws/amazonlinux/amazonlinux:2023@sha256:381352c430f36d8aa6b8b670de06e7e4e5642fe0cb9dbd463bb8d1e79aefc0c7
+          imagePullPolicy: Always
+          command: ["/bin/bash", "/src/pod-fetch-jdk.sh"]
+          env:
+            - name: JDK_URL
+              value: "https://corretto.aws/downloads/resources/8.372.07.1/amazon-corretto-8.372.07.1-linux-aarch64.tar.gz"
+            - name: JDK_SHA256
+              value: "7a6b1fc6762bb4c1defc32d361059e52927e91b2e87791948ba4525ec18f0fbe"
+            - name: HOME
+              value: /work
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: work
+              mountPath: /work
+            - name: src
+              mountPath: /src
+              readOnly: true
+            - name: scratch
+              mountPath: /tmp
+      containers:
+        - name: probe
+          image: public.ecr.aws/amazonlinux/amazonlinux:2023@sha256:381352c430f36d8aa6b8b670de06e7e4e5642fe0cb9dbd463bb8d1e79aefc0c7
+          imagePullPolicy: Always
+          command: ["/bin/bash", "/src/pod-run.sh"]
+          env:
+            - name: PROGRAM
+              value: probe
+            - name: JDK_MAJOR
+              value: "8"
+            - name: JVM_FLAGS
+              value: ""
+          resources:
+            requests:
+              cpu: "2"
+              memory: 1Gi
+            limits:
+              memory: 1Gi
+              cpu: "2"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: work
+              mountPath: /work
+              readOnly: true
+            - name: src
+              mountPath: /src
+              readOnly: true
+            - name: scratch
+              mountPath: /tmp
+      volumes:
+        - name: work
+          emptyDir:
+            sizeLimit: 2Gi
+        - name: scratch
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: src
+          configMap:
+            name: jvmlab-src

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# Offline stand-in for eksctl used by tests/run-tests.sh. Logs each call to $STUB_LOG; for
+# "create cluster -f -" saves the config read from stdin next to the log; "delete cluster"
+# marks the cluster as deleted for the aws stub.
+set -euo pipefail
+: "${STUB_LOG:?STUB_LOG must be set}"
+STATE="$(dirname "$STUB_LOG")"
+printf '%s %s\n' "$(basename "$0")" "$*" >>"$STUB_LOG"
+case "${1:-} ${2:-}" in
+  "create cluster")
+    cat >"$STATE/eksctl-config.yaml"
+    echo "eksctl stub: cluster created"
+    ;;
+  "delete cluster")
+    touch "$STATE/deleted-cluster"
+    echo "eksctl stub: cluster deleted"
+    ;;
+  *)
+    printf 'eksctl stub: unsupported call: %s\n' "$*" >&2
+    exit 1
+    ;;
+esac

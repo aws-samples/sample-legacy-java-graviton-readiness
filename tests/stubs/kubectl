@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# Offline stand-in for kubectl used by tests/run-tests.sh. Logs each call to $STUB_LOG and
+# prints canned output. Every Job gets one pod, <job>-abcde, that has finished.
+# STUB_INIT_FAIL_ONCE=1 makes the init container of the first Job's pod fail (exit 6).
+# STUB_PROBE_LOGS_FAIL=1 makes "kubectl logs ... -c probe" fail as on an API timeout.
+set -euo pipefail
+: "${STUB_LOG:?STUB_LOG must be set}"
+STATE="$(dirname "$STUB_LOG")"
+printf '%s %s\n' "$(basename "$0")" "$*" >>"$STUB_LOG"
+
+ARGS=("$@")
+arg() {
+  local i=0
+  while [ "$i" -lt "${#ARGS[@]}" ]; do
+    if [ "${ARGS[$i]}" = "$1" ]; then
+      printf '%s' "${ARGS[$((i + 1))]:-}"
+      return 0
+    fi
+    i=$((i + 1))
+  done
+}
+
+case "${1:-} ${2:-}" in
+  "config current-context") echo "example-context" ;;
+  "apply -f")
+    f="$(arg -f)"
+    if grep -q '^kind: Job' "$f" 2>/dev/null; then
+      cp "$f" "$STATE/last-job.yaml"
+      echo x >>"$STATE/job-applies"
+    fi
+    ;;
+  "create configmap") printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: jvmlab-src\n' ;;
+  "get nodes") printf '{"items":[{"metadata":{"name":"node-example-1"}}]}\n' ;;
+  "get pods")
+    job="$(arg -l)"
+    job="${job#job-name=}"
+    printf '{"items":[{"metadata":{"name":"%s-abcde"}}]}\n' "$job"
+    ;;
+  "get pod")
+    pod="${3:-}"
+    init_rc=0
+    # the pod of the first Job fails in its init container
+    if [ "${STUB_INIT_FAIL_ONCE:-0}" = 1 ] && [ "$(wc -l <"$STATE/job-applies" 2>/dev/null | tr -d ' ')" = 1 ]; then
+      case "$pod" in nodeinfo-*) ;; *) init_rc=6 ;; esac
+    fi
+    printf '{"metadata":{"name":"%s"},"status":{"phase":"Succeeded","initContainerStatuses":[{"state":{"terminated":{"exitCode":%s}}}],"containerStatuses":[{"state":{"terminated":{"exitCode":0,"reason":"Completed"}}}]}}\n' \
+      "$pod" "$init_rc"
+    ;;
+  "logs "*)
+    case " $* " in
+      *" -c fetch-jdk "*) echo 'JDK ready: openjdk version "1.8.0_372"' ;;
+      *" -c probe "*)
+        if [ "${STUB_PROBE_LOGS_FAIL:-0}" = 1 ]; then
+          echo 'Unable to connect to the server: net/http: TLS handshake timeout' >&2
+          exit 1
+        fi
+        printf '=== container-log\nOSContainer::init: Initializing Container Support\n'
+        printf '=== showsettings-system\nOperating System Metrics:\n    Provider: cgroupv2\n'
+        if grep -q 'value: alloc' "$STATE/last-job.yaml" 2>/dev/null; then
+          printf '=== alloc\n{"event":"start","runtime_max_memory":268435456}\n'
+        else
+          printf '=== probe\n{"probe":"ContainerProbe","available_processors":1}\n'
+        fi
+        ;;
+      *) printf 'kernel: 6.1.0-example\ncgroup_fs: cgroup2fs\n' ;;
+    esac
+    ;;
+  "delete "*) ;;
+  *)
+    printf 'kubectl stub: unsupported call: %s\n' "$*" >&2
+    exit 1
+    ;;
+esac

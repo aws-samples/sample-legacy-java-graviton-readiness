@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# Offline stand-in for uname used by tests/run-tests.sh. STUB_UNAME_S (default Linux) and
+# STUB_UNAME_M (default aarch64) set the answers to -s and -m.
+set -euo pipefail
+case "${1:-}" in
+  -s) printf '%s\n' "${STUB_UNAME_S:-Linux}" ;;
+  -m) printf '%s\n' "${STUB_UNAME_M:-aarch64}" ;;
+  -r) echo "6.1.0-example" ;;
+  *) echo "${STUB_UNAME_S:-Linux}" ;;
+esac

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# Offline stand-in for journalctl used by tests/run-tests.sh: prints one kernel OOM line.
+set -euo pipefail
+: "${STUB_LOG:?STUB_LOG must be set}"
+printf '%s %s\n' "$(basename "$0")" "$*" >>"$STUB_LOG"
+echo "Nov 03 00:00:00 example kernel: java invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0"
+echo "Nov 03 00:00:00 example kernel: Memory cgroup out of memory: Killed process 4242 (java)"

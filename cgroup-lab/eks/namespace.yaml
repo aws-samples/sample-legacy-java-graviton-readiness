@@ -1,0 +1,12 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# Namespace of the cgroup lab. Pod Security Admission enforces the "restricted" profile.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jvm-cgroup-lab
+  labels:
+    app.kubernetes.io/name: jvm-cgroup-lab
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted

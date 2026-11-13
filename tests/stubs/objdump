@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# Offline stand-in for objdump used by tests/run-tests.sh. "-f" reports the architecture
+# STUB_OBJDUMP_ARCH (default aarch64); "-d" prints a few canned AArch64 instructions.
+set -euo pipefail
+case "${1:-}" in
+  -f) printf 'libjvm.so:     file format elf64-littleaarch64\narchitecture: %s, flags 0x00000150:\n' "${STUB_OBJDUMP_ARCH:-aarch64}" ;;
+  -d)
+    printf '00001000 <example>:\n'
+    printf '    1000:\tcasal\tw1, w2, [x0]\n'
+    printf '    1004:\tldaddal\tx1, x2, [x0]\n'
+    printf '    1008:\tswpal\tw1, w2, [x0]\n'
+    printf '    100c:\tldaxr\tw1, [x0]\n'
+    printf '    1010:\tstlxr\tw3, w1, [x0]\n'
+    printf '    1014:\tldr\tx0, [sp]\n'
+    ;;
+  *) exit 1 ;;
+esac
