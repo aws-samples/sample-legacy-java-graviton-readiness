@@ -484,6 +484,8 @@ PASS 表示该 JDK 已越过这些阈值，并不表示它没有其他缺陷。
 - JDK 只通过 HTTPS 下载，每个压缩包在解压前都会与固定的 SHA-256 比对。容器镜像按摘要固定。
 - 容器以非 root 用户运行，不授予 capability，禁止权限提升，根文件系统只读，docker 实验中不提供网络。EKS Pod 在"restricted"
   Pod 安全标准下运行，不挂载服务账号令牌。
+- `namespace.yaml` 中的 NetworkPolicy 拒绝所有到实验 Pod 的入站流量，并允许所有出站流量（用于下载 JDK）；只有启用
+  Amazon VPC CNI 的网络策略功能后，该策略才会生效（参见 [Amazon EKS 文档](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy-configure.html)）。
 - `run-thread-matrix.sh` 在运行期间修改主机的 THP 模式（退出时恢复）。请只在专用测试主机上运行。
 - 未指定 `--api-allowed-cidr` 时，EKS 公有 API 端点接受来自所有地址的请求（请求仍需有效凭证）。
 - eksctl 按其默认设置创建 EKS 集群和节点组的 IAM 角色及安全组，参见 [eksctl 文档](https://eksctl.io/usage/minimum-iam-policies/)。

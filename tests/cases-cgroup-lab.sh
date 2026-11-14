@@ -213,6 +213,45 @@ test_eks_print_job_matches_example() {
   assert_not_called "kubectl "
 }
 
+# whole_cpu_limits FILE: every "cpu:" under "limits:" is a whole number of CPUs.
+whole_cpu_limits() {
+  awk '/limits:/ { l = 1; next }
+    l && /cpu:/ { v = $2; gsub(/"/, "", v); if (v !~ /^[0-9]+$/) bad = 1; next }
+    l && !/memory:/ { l = 0 }
+    END { exit bad }' "$1"
+}
+test_eks_manifests_network_policy() {
+  local eks="$REPO_DIR/cgroup-lab/eks" ns="$REPO_DIR/cgroup-lab/eks/namespace.yaml"
+  [ "$(grep '^kind:' "$ns" | tr '\n' ' ')" = "kind: Namespace kind: NetworkPolicy " ] ||
+    fail "namespace.yaml must hold the Namespace, then the NetworkPolicy"
+  assert_file_contains "$ns" "pod-security.kubernetes.io/enforce: restricted"
+  # NetworkPolicy: all pods of the namespace, no ingress rule (deny all), egress allowed
+  awk '/^kind: NetworkPolicy/ { on = 1 } on' "$ns" >"$CASE_DIR/netpol.yaml"
+  assert_file_contains "$CASE_DIR/netpol.yaml" "  namespace: jvm-cgroup-lab"
+  assert_file_contains "$CASE_DIR/netpol.yaml" "  podSelector: {}"
+  assert_file_contains "$CASE_DIR/netpol.yaml" "    - Ingress"
+  assert_file_contains "$CASE_DIR/netpol.yaml" "    - Egress"
+  [ "$(awk '/^  egress:/ { getline; print }' "$CASE_DIR/netpol.yaml")" = "    - {}" ] || fail "egress is not allowed to all destinations"
+  ! grep -q 'ingress:' "$CASE_DIR/netpol.yaml" || fail "the NetworkPolicy has an ingress rule"
+  # the lab's pods are in the namespace of the NetworkPolicy
+  for f in nodeinfo-pod.yaml example-job.yaml; do
+    [ "$(grep -c '^  namespace: ' "$eks/$f")" = "$(grep -c '^  namespace: jvm-cgroup-lab$' "$eks/$f")" ] ||
+      fail "$f has a pod outside jvm-cgroup-lab"
+  done
+  # whole-CPU limits only (fractional CPU limits throttle); the nodeinfo pods keep a 100m request
+  whole_cpu_limits "$eks/nodeinfo-pod.yaml" || fail "nodeinfo-pod.yaml has a fractional CPU limit"
+  whole_cpu_limits "$eks/example-job.yaml" || fail "example-job.yaml has a fractional CPU limit"
+  [ "$(grep -c '^          cpu: "1"$' "$eks/nodeinfo-pod.yaml")" = 2 ] || fail "nodeinfo pods without a CPU limit of 1"
+  [ "$(grep -c '^          cpu: 100m$' "$eks/nodeinfo-pod.yaml")" = 2 ] || fail "nodeinfo pods without a CPU request of 100m"
+  # runAsNonRoot on the pod and on every container
+  [ "$(grep -c 'runAsNonRoot: true$' "$eks/nodeinfo-pod.yaml")" = 4 ] || fail "nodeinfo pods: runAsNonRoot missing"
+  run_script cgroup-lab/eks/run-eks-matrix.sh --instance-type m9g.xlarge --print-job bottlerocket,corretto-8.372.07.1,K1
+  assert_exit 0
+  assert_contains "namespace: jvm-cgroup-lab"
+  whole_cpu_limits "$OUT" || fail "rendered Job has a fractional CPU limit"
+  [ "$(grep -c 'runAsNonRoot: true$' "$OUT")" = 3 ] || fail "rendered Job: runAsNonRoot missing"
+}
+
 test_eks_matrix_run() {
   run_script cgroup-lab/eks/run-eks-matrix.sh --instance-type m9g.xlarge --jdks corretto-8.372.07.1 --configs K1,K6 --nodegroups al2023 \
     --repeats-probe 1 --repeats-alloc 1 --out "$CASE_DIR/out" --timeout 60

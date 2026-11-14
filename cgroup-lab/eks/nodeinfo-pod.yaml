@@ -50,9 +50,10 @@ spec:
           cpu: 100m
           memory: 64Mi
         limits:
-          cpu: 100m
+          cpu: "1"
           memory: 64Mi
       securityContext:
+        runAsNonRoot: true
         allowPrivilegeEscalation: false
         readOnlyRootFilesystem: true
         capabilities:
@@ -102,9 +103,10 @@ spec:
           cpu: 100m
           memory: 64Mi
         limits:
-          cpu: 100m
+          cpu: "1"
           memory: 64Mi
       securityContext:
+        runAsNonRoot: true
         allowPrivilegeEscalation: false
         readOnlyRootFilesystem: true
         capabilities:

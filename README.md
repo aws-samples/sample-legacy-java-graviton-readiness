@@ -541,6 +541,9 @@ they are reported as part of the cluster and kept, and eksctl deletes them with 
 - Containers run as a non-root user with no capabilities, no privilege escalation, a read-only
   root file system and (docker) no network. EKS pods run under the "restricted" Pod Security
   Standard and do not mount a service account token.
+- A NetworkPolicy in `namespace.yaml` denies all ingress to the lab's pods and allows all egress
+  (for the JDK downloads); the Amazon VPC CNI enforces it only when its network policy feature is
+  enabled ([Amazon EKS documentation](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy-configure.html)).
 - `run-thread-matrix.sh` changes the host's THP mode while it runs (it restores it on exit). Run
   it only on dedicated test hosts.
 - Without `--api-allowed-cidr`, the EKS public API endpoint accepts requests from all addresses

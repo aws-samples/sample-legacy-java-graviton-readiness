@@ -198,6 +198,7 @@ spec:
               cpu: "1"
               memory: 1Gi
           securityContext:
+            runAsNonRoot: true
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
@@ -230,6 +231,7 @@ spec:
               memory: $mem_lim
 $cpu_limit_line
           securityContext:
+            runAsNonRoot: true
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:

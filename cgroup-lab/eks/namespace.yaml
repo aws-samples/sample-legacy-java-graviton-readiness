@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: MIT-0
 #
 # Namespace of the cgroup lab. Pod Security Admission enforces the "restricted" profile.
+# The NetworkPolicy denies all ingress to the lab's pods and allows all egress (the init
+# containers download the JDKs over HTTPS). The Amazon VPC CNI enforces it only when its
+# network policy feature is enabled.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -10,3 +13,18 @@ metadata:
     app.kubernetes.io/name: jvm-cgroup-lab
     pod-security.kubernetes.io/enforce: restricted
     pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: jvm-cgroup-lab-deny-ingress
+  namespace: jvm-cgroup-lab
+  labels:
+    app.kubernetes.io/name: jvm-cgroup-lab
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  egress:
+    - {}

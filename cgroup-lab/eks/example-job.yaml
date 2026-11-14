@@ -62,6 +62,7 @@ spec:
               cpu: "1"
               memory: 1Gi
           securityContext:
+            runAsNonRoot: true
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
@@ -94,6 +95,7 @@ spec:
               memory: 1Gi
               cpu: "2"
           securityContext:
+            runAsNonRoot: true
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
